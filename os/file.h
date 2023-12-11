@@ -8,6 +8,18 @@
 #define PIPESIZE (512)
 #define FILEPOOLSIZE (NPROC * FD_BUFFER_SIZE)
 
+// 文件类型只需要考虑:
+#define DIR 0x040000              // directory
+#define FILE 0x100000             // ordinary regular file
+
+struct Stat {
+   uint64 dev;     // 文件所在磁盘驱动号，该实现写死为 0 即可。
+   uint64 ino;     // inode 文件所在 inode 编号
+   uint32 mode;    // 文件类型
+   uint32 nlink;   // 硬链接数量，初始为1
+   uint64 pad[7];  // 无需考虑，为了兼容性设计
+};
+
 // in-memory copy of an inode,it can be used to quickly locate file entities on disk
 struct inode {
 	uint dev; // Device number
@@ -18,6 +30,7 @@ struct inode {
 	uint size;
 	uint addrs[NDIRECT + 1];
 	// LAB4: You may need to add link count here
+	int nlink;
 };
 
 // Defines a file in memory that provides information about the current use of the file and the corresponding inode location

@@ -77,6 +77,7 @@ struct inode;
 
 void fsinit();
 int dirlink(struct inode *, char *, uint);
+int dirunlink(struct inode *, char *);
 struct inode *dirlookup(struct inode *, char *, uint *);
 struct inode *ialloc(uint, short);
 struct inode *idup(struct inode *);
@@ -86,6 +87,7 @@ void iput(struct inode *);
 void iunlock(struct inode *);
 void iunlockput(struct inode *);
 void iupdate(struct inode *);
+short getdinodeType(struct inode *);
 struct inode *namei(char *);
 struct inode *root_dir();
 int readi(struct inode *, int, uint64, uint, uint);

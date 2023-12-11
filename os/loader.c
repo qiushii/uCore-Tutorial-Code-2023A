@@ -2,6 +2,7 @@
 #include "defs.h"
 #include "file.h"
 #include "trap.h"
+#include "timer.h"
 
 extern char INIT_PROC[];
 
@@ -43,9 +44,19 @@ int bin_loader(struct inode *ip, struct proc *p)
 	p->trapframe->sp = p->ustack + USTACK_SIZE;
 	p->trapframe->epc = va_start;
 	p->max_page = PGROUNDUP(p->ustack + USTACK_SIZE - 1) / PAGE_SIZE;
+	//printf("[binloader]%d: %d\n", p->pid, p->max_page); 	//for debug
 	p->program_brk = p->ustack + USTACK_SIZE;
         p->heap_bottom = p->ustack + USTACK_SIZE;
 	p->state = RUNNABLE;
+	
+	uint64 cycle = get_cycle();
+	uint64 sec = cycle / CPU_FREQ;
+	uint64 usec = (cycle % CPU_FREQ) * 1000000 / CPU_FREQ;
+	p->time = sec * 1000 + usec / 1000;
+	for (int i = 0; i < MAX_SYSCALL_NUM; i++) {
+		p->syscall_times[i] = 0;
+	}
+	
 	return 0;
 }
 

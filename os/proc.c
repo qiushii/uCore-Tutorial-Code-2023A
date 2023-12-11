@@ -12,7 +12,7 @@ __attribute__((aligned(4096))) char trapframe[NPROC][TRAP_PAGE_SIZE];
 extern char boot_stack_top[];
 struct proc *current_proc;
 struct proc idle;
-struct queue task_queue;
+struct PriorityQueue task_queue;
 
 int threadid()
 {
@@ -52,20 +52,24 @@ int allocpid()
 
 struct proc *fetch_task()
 {
+	//int stride = get_MinStride(&task_queue);  //stride��p->stride��һ�µ�
 	int index = pop_queue(&task_queue);
 	if (index < 0) {
 		debugf("No task to fetch\n");
 		return NULL;
 	}
-	debugf("fetch task %d(pid=%d) from task queue\n", index,
-	       pool[index].pid);
-	return pool + index;
+	struct proc *p = (pool + index);
+	int pass = BIGSTRIDE / p->prio;
+	p->stride += pass;
+	
+	debugf("fetch task %d(pid=%d)(%d)=>%d to task queue\n", index, pool[index].pid, pool[index].prio, pool[index].stride);
+	return p;
 }
 
 void add_task(struct proc *p)
 {
-	push_queue(&task_queue, p - pool);
-	debugf("add task %d(pid=%d) to task queue\n", p - pool, p->pid);
+	push_queue(&task_queue, p - pool, p->stride);
+	debugf("add task %d(pid=%d)(%d) to task queue\n", p - pool, p->pid, p->stride);
 }
 
 // Look in the process table for an UNUSED proc.
@@ -89,6 +93,8 @@ found:
 	p->max_page = 0;
 	p->parent = NULL;
 	p->exit_code = 0;
+	p->prio = 16;
+	p->stride = 0;
 	p->pagetable = uvmcreate((uint64)p->trapframe);
 	p->program_brk = 0;
         p->heap_bottom = 0;
@@ -179,6 +185,7 @@ void freepagetable(pagetable_t pagetable, uint64 max_page)
 
 void freeproc(struct proc *p)
 {
+	//printf("[freeproc]%d: %d\n", p->pid, p->max_page); 	//for debug
 	if (p->pagetable)
 		freepagetable(p->pagetable, p->max_page);
 	p->pagetable = 0;
@@ -204,10 +211,11 @@ int fork()
 		panic("uvmcopy\n");
 	}
 	np->max_page = p->max_page;
+	//printf("[fork]%d: %d\n", p->pid, p->max_page); 	//for debug
 	// Copy file table to new proc
-	for (i = 0; i < FD_BUFFER_SIZE; i++) {
+	init_stdio(np);
+	for (i = 3; i < FD_BUFFER_SIZE; i++) {
 		if (p->files[i] != NULL) {
-			// TODO: f->type == STDIO ?
 			p->files[i]->ref++;
 			np->files[i] = p->files[i];
 		}
@@ -267,6 +275,7 @@ int exec(char *path, char **argv)
 		errorf("invalid file name %s\n", path);
 		return -1;
 	}
+	//printf("[exec]%d: %d\n", p->pid, p->max_page); 	//for debug
 	uvmunmap(p->pagetable, 0, p->max_page, 1);
 	bin_loader(ip, p);
 	iput(ip);
