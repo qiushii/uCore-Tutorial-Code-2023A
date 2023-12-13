@@ -5,6 +5,7 @@
 #include "syscall_ids.h"
 #include "timer.h"
 #include "trap.h"
+#include "riscv.h"
 
 extern pagetable_t kernel_pagetable;
 
@@ -124,41 +125,43 @@ int mmap(void* start, unsigned long long len, int port, int flag, int fd)
 	uint64 _W = (port & (1L<<1)) == 0 ? 0x00 : PTE_W;
 	uint64 _X = (port & (1L<<2)) == 0 ? 0x00 : PTE_X;
 
-	int perm =  _R | _W | _X | PTE_U | PTE_V;
-	uint64 a = (uint64)start;
+	int perm =  _R | _W | _X | PTE_U;
 	int page_num = getPages(len);
-	//printf("*%d*:[%x], (%d = %dk), %x\n", curr_proc()->pid, start, len, page_num, perm);	//for debug
+	//printf("mmap: *%d*:[%x], (%d = %dk), %x\n", curr_proc()->pid, start, len, page_num, perm);	//for debug
 	for(int p = 0; p<page_num; p++)
 	{
 		uint64 kstart = (uint64)kalloc();
-		//printf("*%d*:%x=>%x\n", curr_proc()->pid, a, kstart);			//for debug
-		if(mappages(curr_proc()->pagetable, a, PAGE_SIZE, kstart, perm) != 0)
+		if(mappages(curr_proc()->pagetable, (uint64)start, PAGE_SIZE, kstart, perm) != 0)
 			return -1;
 
-		curr_proc()->max_page++;
-		//printf("[mmap]%d: %d\n", curr_proc()->pid, curr_proc()->max_page); 	//for debug
-		a += PAGE_SIZE;
+		//printf("[%d]:%x=>%x\n", p, start, kstart);			//for debug
+		uint64 tmpMaxPage = PGROUNDUP((uint64)start) / PAGE_SIZE;;
+		if(tmpMaxPage > curr_proc()->max_page)
+			curr_proc()->max_page = tmpMaxPage;
+
+		//printf("[mmap]:%d: %d\n", curr_proc()->pid, curr_proc()->max_page);			//for debug
+		start += PAGE_SIZE;
 	}
+	
 	 return 0;
 }
 
 int munmap(void* start, unsigned long long len)
 {
-	uint64 a = (uint64)start;
 	int page_num = getPages(len);
-	//printf("[munmap]%d:[%x], %d\n", curr_proc()->pid, start, len); 	//for debug
+	//printf("munmap: *%d*:[%x], %d\n", curr_proc()->pid, start, len);	//for debug
 	for(int p = 0; p<page_num; p++)
 	{
-		if(useraddr(curr_proc()->pagetable, a) == 0)
+		if(useraddr(curr_proc()->pagetable, (uint64)start) == 0)
 			return -1;
-		if ((a % PGSIZE) != 0)
+		if (((uint64)start % PGSIZE) != 0)
 			return -1;
 			
-		uvmunmap(curr_proc()->pagetable, a, 1, 1);
-		
-		curr_proc()->max_page--;
-		//printf("[munmap]%d: %d\n", curr_proc()->pid, curr_proc()->max_page); 	//for debug
-		a += PAGE_SIZE;
+		uvmunmap(curr_proc()->pagetable, (uint64)start, 1, 1);
+
+		//printf("[%d]*%d*:%x\n", p, curr_proc()->pid, start);			//for debug
+		//printf("[munmap]:%d: %d\n", curr_proc()->pid, curr_proc()->max_page);			//for debug
+		start += PAGE_SIZE;
 	}
 	return 0;
 }
